@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import {initialState,analyze,section,bentSection,preset} from './dist/engine.mjs';
+const near=(a,b,tol=1e-7)=>assert.ok(Math.abs(a-b)<=tol*Math.max(1,Math.abs(b)),`${a} != ${b}`);
+let tests=0;function test(name,fn){fn();tests++;console.log('PASS '+name);}
+function beam(){const s=initialState();s.nodes=[{id:1,x:0,y:0,fix:'fixed',mount:'wall'},{id:2,x:1000,y:0,fix:'free',mount:'wall'}];s.members=[{id:1,a:1,b:2,material:'SS400',section:'MANUAL',k:2}];s.manual={A:1000,I:1e6,Imin:1e6,Z:20000,Av:1000};s.selfWeight=false;s.loads=[{node:2,fx:0,fy:-1,mz:0}];return s;}
+test('cantilever tip load exact displacement, moment and equilibrium',()=>{const s=beam(),r=analyze(s);near(r.maxDisp,1000*1000**3/(3*205000*1e6));near(r.results[0].M,1);near(r.supports[0].ry,1);near(r.supports[0].m,1);near(r.results[0].sigma,50);});
+test('axial force and deformation',()=>{const s=beam();s.loads=[{node:2,fx:1,fy:0,mz:0}];const r=analyze(s);near(r.maxDisp,1000*1000/(205000*1000));near(r.results[0].N,1);near(r.results[0].euler,0);near(r.supports[0].rx,-1);});
+test('pure end moment',()=>{const s=beam();s.loads=[{node:2,fx:0,fy:0,mz:1}];const r=analyze(s);near(r.maxDisp,1e6*1000**2/(2*205000*1e6));near(r.results[0].M,1);near(r.supports[0].m,-1);});
+test('uniform selfweight exact cantilever solution',()=>{const s=beam();s.loads=[];s.selfWeight=true;const r=analyze(s),q=.001*7850*9.80665/1000;near(r.maxDisp,q*1000**4/(8*205000*1e6));near(r.supports[0].ry,q);near(r.results[0].M,q/2);});
+test('fixed-fixed beam uniform load internal deformation and moment',()=>{const s=beam();s.nodes[1].fix='fixed';s.selfWeight=true;s.loads=[];const r=analyze(s),q=.001*7850*9.80665/1000;near(r.maxDisp,q*1000**4/(384*205000*1e6));near(r.results[0].M,q/12);});
+test('load factor scales all actions and displacements',()=>{const s=initialState(),r1=analyze(s);s.factor=2;const r2=analyze(s);near(r2.maxDisp,r1.maxDisp*2);near(r2.maxStress,r1.maxStress*2);near(r2.weight,r1.weight);});
+test('SUS304 elastic modulus is used',()=>{const s=beam(),r1=analyze(s);s.members[0].material='SUS304';const r2=analyze(s);near(r2.maxDisp/r1.maxDisp,205/193);});
+test('all nine geometry/mount presets solve and satisfy force + moment equilibrium',()=>{for(const type of ['l','brace','portal'])for(const mount of ['floor','wall','ceiling']){const s={...initialState(),...preset(type,mount,800,600)};const r=analyze(s);let fx=0,fy=0,m=0;s.nodes.forEach((n,i)=>{const x=r.F[3*i]+r.R[3*i],y=r.F[3*i+1]+r.R[3*i+1];fx+=x;fy+=y;m+=r.F[3*i+2]+r.R[3*i+2]+n.x*y-n.y*x;});near(fx,0,1e-7);near(fy,0,1e-7);near(m,0,1e-6);assert.ok(r.maxDisp>0);}});
+test('rectangular tube section matches exact area and inertia',()=>{const s=initialState();s.dims={h:100,b:50,t:5,tf:5};const p=section(s,'RECT');near(p.A,100*50-90*40);near(p.I,(50*100**3-40*90**3)/12);});
+test('bent strip area, centroid and development allowance',()=>{const p=bentSection({t:4,r:6,k:.4,legs:[{length:50,turn:90},{length:80,turn:0}]});near(p.A,520);near(p.developed,130+Math.PI/2*7.6);near(p.cx,(200*25+320*50)/520);assert.ok(p.Imin>0);});
+test('anchor tension: wall shear, floor compression and ceiling tension',()=>{const s=beam();s.anchor.nt=10;s.anchor.vt=10;s.anchor.product='verification';s.anchor.confirmed=true;let r=analyze(s);near(r.supports[0].tension,2*1e6/(4*120)/1000);near(r.supports[0].shear,.25);near(r.supports[0].ratio,r.supports[0].tension/10+.025);s.nodes[0].mount='floor';r=analyze(s);near(r.supports[0].tension,2*1e6/(4*120)/1000);s.nodes[0].mount='ceiling';r=analyze(s);near(r.supports[0].tension,.25+2*1e6/(4*120)/1000);});
+test('missing allowables never receive a passing ratio',()=>{const r=analyze(beam());assert.equal(r.memberRatio,null);assert.equal(r.anchorRatio,null);});
+test('unstable model fails explicitly',()=>{const s=beam();s.nodes[0].fix='free';assert.throws(()=>analyze(s),/支点/);});
+test('disconnected model fails explicitly',()=>{const s=beam();s.nodes.push({id:3,x:5,y:5,fix:'free',mount:'wall'});assert.throws(()=>analyze(s),/不安定/);});
+test('invalid section and member rejected',()=>{const s=beam();s.manual.I=0;assert.throws(()=>analyze(s));s.manual.I=1000;s.members[0].b=99;assert.throws(()=>analyze(s));});
+console.log(`${tests} checks passed`);
