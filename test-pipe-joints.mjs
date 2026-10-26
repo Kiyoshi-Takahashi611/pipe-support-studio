@@ -5,7 +5,7 @@ import {initialState,analyze} from './dist/engine.mjs';
 import {defaultRack,resizeTiers,buildRack,normalizeRack} from './dist/rack.mjs';
 const near=(a,b,t=1e-7)=>assert.ok(Math.abs(a-b)<=t*Math.max(1,Math.abs(b)),`${a} != ${b}`);
 let n=0;const test=(name,fn)=>{fn();n++;console.log('PASS '+name)};
-function rack(type='brace',mount='wall'){const s={...initialState(),type,mount,w:1200,h:1500,geometryMode:'dimensions',selfWeight:false};s.rack=resizeTiers(defaultRack(s),3,s.h,s.w);return s;}
+function rack(type='brace',mount='wall'){const s={...initialState(),type,mount,w:1200,h:1500,geometryMode:'dimensions',selfWeight:false};s.rack=resizeTiers(defaultRack(s),3,s.h,s.w);s.rack.tipTie=false;return s;}
 function equilibrium(s){const m=buildRack(s),r=analyze(s);let x=0,y=0,z=0;m.nodes.forEach((p,i)=>{const fx=r.F[3*i]+r.R[3*i],fy=r.F[3*i+1]+r.R[3*i+1];x+=fx;y+=fy;z+=r.F[3*i+2]+r.R[3*i+2]+p.x*fy-p.y*fx;});near(x,0,1e-6);near(y,0,1e-6);near(z,0,1e-4);return {m,r};}
 test('36 manufacturer pipe entries and published spot checks',()=>{assert.equal(Object.values(pipeCatalog).reduce((n,c)=>n+c.rows.length,0),36);assert.equal(pipeCatalog.sgp.rows.find(r=>r.nominal===50).mass,5.31);assert.equal(pipeCatalog['sus304tp-sch10s'].rows.find(r=>r.nominal===50).mass,4.02);assert.equal(pipeCatalog['sus304tp-sch40'].rows.find(r=>r.nominal===100).wall,6);});
 test('SGP50 full water + insulation independent hand calculation',()=>{const p={...newPipe(300),insulation:'custom',insulationThickness:25,insulationDensity:90,extraMass:.2},w=pipeWeight(p);const water=Math.PI*.0529**2/4*1000,insulation=Math.PI*(.1105**2-.0605**2)/4*90;near(w.pipeMass,5.31);near(w.waterMass,water);near(w.insulationMass,insulation);near(w.load,(5.31+water+insulation+.2)*3*9.80665/1000);});
