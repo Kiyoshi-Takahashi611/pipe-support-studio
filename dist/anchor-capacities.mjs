@@ -52,7 +52,7 @@ export function autoCapacity(a,context={}){
   if(a.holeDepth>0&&a.thickness<a.holeDepth+row.hb)issues.push(`孔底から裏面まで ${row.hb} mm 以上が必要です。`);
  }
  if(row.source==='hy200'){
-  if(a.sustained!==false||context.selfWeight===true)issues.push('HIT-HY 200 V3の登録表は非持続荷重用です。持続荷重・架台自重を含む場合はPROFIS等の個別設計値を手入力してください。');
+  if(a.sustained!==false||context.selfWeight===true)issues.push('HIT-HY 200 V3の登録表は非持続荷重用です。持続荷重・架台自重・配管の自動重量を含む場合はPROFIS等の個別設計値を手入力してください。');
   if(!(Number.isFinite(a.tempLong)&&Number.isFinite(a.tempShort)&&a.tempLong>=-40&&a.tempLong<=24&&a.tempShort>=a.tempLong&&a.tempShort<=40))issues.push('登録温度範囲I（−40℃〜、長期24℃以下・短期40℃以下）に適合しません。');
  }
  if(!a.layoutConfirmed||!a.layoutEvidence?.trim())issues.push('群効果・へりあき・端部の影響がないことを別途確認してください。最小寸法の充足だけでは表値を採用できません。');
