@@ -1,3 +1,4 @@
+import {buildRack} from './rack.mjs';
 import {anchorExtraDefaults,anchorCapacityReady,anchorProducts,effectiveAnchorCapacity} from './anchors.mjs';
 // Plane, linear elastic Euler-Bernoulli frame. Units: N, mm, MPa.
 export const materials={SS400:{E:205000,rho:7850,label:'SS400'},SUS304:{E:193000,rho:7930,label:'SUS304'}};
@@ -41,6 +42,7 @@ function solve(A,b){A=A.map((r,i)=>[...r,b[i]]);let n=b.length;for(let i=0;i<n;i
  for(let k=0;k<n;k++){let p=k;for(let i=k+1;i<n;i++)if(Math.abs(A[i][k])>Math.abs(A[p][k]))p=i;if(Math.abs(A[p][k])<1e-12)throw Error('構造が不安定です。固定条件・孤立節点・部材接続を確認してください。');[A[k],A[p]]=[A[p],A[k]];for(let i=k+1;i<n;i++){let f=A[i][k]/A[k][k];for(let j=k;j<=n;j++)A[i][j]-=f*A[k][j];}}
  const x=Array(n).fill(0);for(let i=n-1;i>=0;i--)x[i]=(A[i][n]-sum(A[i].slice(i+1,n).map((v,j)=>v*x[i+1+j])))/A[i][i];if(x.some(v=>!Number.isFinite(v)))throw Error('数値解が得られません。');return x;}
 export function analyze(s){
+ if(s?.geometryMode==='dimensions')s={...s,...buildRack(s)};
  const finite=(v)=>typeof v==='number'&&Number.isFinite(v), positive=v=>finite(v)&&v>0;
  if(!s||!Array.isArray(s.nodes)||!Array.isArray(s.members)||!Array.isArray(s.loads))throw Error('モデル形式が不正です。');
  if(typeof s.name!=='string'||typeof s.note!=='string'||typeof s.manualSource!=='string')throw Error('文字項目の形式が不正です。');
@@ -54,7 +56,7 @@ export function analyze(s){
  if(!s.bent||!Array.isArray(s.bent.legs)||!s.dims||!s.manual)throw Error('断面データの形式が不正です。');
  if(!['h','b','t','tf'].every(k=>positive(s.dims[k]))||!['A','I','Imin','Z','Av'].every(k=>positive(s.manual[k])))throw Error('断面寸法・断面性能は正の数値で指定してください。');
  bentSection(s.bent);
- if(s.nodes.length<2||s.nodes.length>40||s.members.length<1||s.members.length>80)throw Error('節点数は2〜40、部材数は1〜80の範囲にしてください。');
+ if(s.nodes.length<2||s.nodes.length>80||s.members.length<1||s.members.length>160)throw Error('節点数は2〜80、部材数は1〜160の範囲にしてください。');
  const ids=s.nodes.map(n=>n.id);if(new Set(ids).size!==ids.length)throw Error('節点番号が重複しています。');s.nodes.forEach(n=>{if(![n.x,n.y].every(Number.isFinite)||!['free','fixed','pin'].includes(n.fix))throw Error('節点座標または支点条件が不正です。');});
  if(!(s.factor>0&&s.deflection>0))throw Error('荷重倍率・変位限度は正の値が必要です。');
  const nd=s.nodes.length*3,K=mat(nd),F=Array(nd).fill(0),els=[];let weight=0;
@@ -68,7 +70,7 @@ export function analyze(s){
  const fixed=[];s.nodes.forEach((n,i)=>{if(n.fix!=='free')fixed.push(3*i,3*i+1);if(n.fix==='fixed')fixed.push(3*i+2);});if(!fixed.length)throw Error('支点を指定してください。');const free=Array.from({length:nd},(_,i)=>i).filter(i=>!fixed.includes(i));const uf=solve(free.map(i=>free.map(j=>K[i][j])),free.map(i=>F[i])),u=Array(nd).fill(0);free.forEach((i,j)=>u[i]=uf[j]);const R=mv(K,u).map((x,i)=>x-F[i]);
  let maxDisp=0;const results=els.map(e=>{const ul=mv(e.T,e.ix.map(i=>u[i])),f=mv(e.kl,ul).map((v,i)=>v-e.fl[i]);let maxM=0,maxV=0,maxN=0,compression=0,disp=0;const positions=Array.from({length:101},(_,i)=>e.L*i/100);if(e.qy&&-f[1]/e.qy>0&&-f[1]/e.qy<e.L)positions.push(-f[1]/e.qy);
  for(const x of positions){const t=x/e.L,N=-f[0]-e.qx*x,V=f[1]+e.qy*x,M=-f[2]+f[1]*x+e.qy*x*x/2;maxN=Math.max(maxN,Math.abs(N));compression=Math.max(compression,-N);maxV=Math.max(maxV,Math.abs(V));maxM=Math.max(maxM,Math.abs(M));const ux=ul[0]*(1-t)+ul[3]*t+e.qx*x*(e.L-x)/(2*e.mt.E*e.p.A);const uy=(1-3*t*t+2*t**3)*ul[1]+e.L*(t-2*t*t+t**3)*ul[2]+(3*t*t-2*t**3)*ul[4]+e.L*(-t*t+t**3)*ul[5]+e.qy*x*x*(e.L-x)**2/(24*e.mt.E*e.p.I);disp=Math.max(disp,Math.hypot(ux,uy));}
- maxDisp=Math.max(maxDisp,disp);const sigma=maxN/e.p.A+maxM/e.p.Z,tau=1.5*maxV/e.p.Av,cr=Math.PI**2*e.mt.E*e.p.Imin/(e.m.k*e.L)**2,allow=s.allow[e.m.material];const normal=allow.normal>0?sigma/allow.normal:null,shear=allow.shear>0?tau/allow.shear:null;
+ maxDisp=Math.max(maxDisp,disp);const sigma=maxN/e.p.A+maxM/e.p.Z,tau=1.5*maxV/e.p.Av,cr=Math.PI**2*e.mt.E*e.p.Imin/(e.m.k*(e.m.physicalLength||e.L))**2,allow=s.allow[e.m.material];const normal=allow.normal>0?sigma/allow.normal:null,shear=allow.shear>0?tau/allow.shear:null;
  return {id:e.m.id,L:e.L,p:e.p,material:e.m.material,N:maxN/1000,V:maxV/1000,M:maxM/1e6,sigma,tau,disp,euler:compression/cr,normal,shear,ratio:normal===null||shear===null?null:Math.max(normal,shear),f,ul};});
  const anchorCapacity=effectiveAnchorCapacity(s.anchor,{selfWeight:s.selfWeight});
  const supports=s.nodes.flatMap((n,i)=>{if(n.fix==='free')return [];const rx=R[3*i],ry=R[3*i+1],mz=R[3*i+2],a=s.anchor;const normal=n.mount==='wall'?-rx:n.mount==='ceiling'?ry:-ry,shear=n.mount==='wall'?ry:rx;const valid=a.count>=2&&a.count%2===0&&a.pitch>0;const tension=valid?(Math.max(0,normal)/a.count+2*Math.abs(mz)/(a.count*a.pitch))/1000:null,vs=valid?Math.abs(shear)/a.count/1000:null;return [{id:n.id,mount:n.mount,rx:rx/1000,ry:ry/1000,m:mz/1e6,tension,shear:vs,ratio:valid&&anchorCapacity.ready?tension/anchorCapacity.nt+vs/anchorCapacity.vt:null}];});
