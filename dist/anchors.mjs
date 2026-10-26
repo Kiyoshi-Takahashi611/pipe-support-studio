@@ -1,7 +1,8 @@
-// Product identity and official reference links only. No design capacities are inferred.
+import {autoDefaults,startAuto,autoCapacity} from './anchor-capacities.mjs';
+// Product identity; versioned manufacturer capacities live in anchor-capacities.mjs.
 const hilti='https://www.hilti.co.jp/c/CLS_FASTENER_7135/';
 const sanko='https://sanko-techno.co.jp/products/metal/anchor20/';
-const hyManual='https://www.hilti.co.jp/medias/sys_master/documents/h66/hd9/10117760024606/Technical-information-ASSET-DOC-LOC-22006755.pdf';
+const hyManual='https://productdata.hilti.com/APQ_HC_RAW/ASSET_DOC_LOC_22006755.pdf';
 export const anchorProducts={
  'hilti-hy200r-v3':{maker:'HILTI',name:'HIT-HY 200-R V3',type:'chemical',material:'注入式樹脂 + 指定アンカーロッド（別途指定）',url:hilti+'CLS_CHEMICAL_ANCHORS_7135/r11219549',technical:hyManual,note:'使用するロッド・材質強度区分・径・埋込み・穿孔方法を特定してください。R V3とA V3の施工・硬化条件を区別し、母材温度と上向き施工の条件を資料で確認してください。'},
  'hilti-hy200a-v3':{maker:'HILTI',name:'HIT-HY 200-A V3',type:'chemical',material:'注入式樹脂 + 指定アンカーロッド（別途指定）',url:hilti+'CLS_CHEMICAL_ANCHORS_7135/r14406294',technical:hyManual,note:'高速硬化タイプ。使用するロッド・材質強度区分・径・埋込み・穿孔方法を特定してください。母材温度ごとの可使時間・硬化時間と上向き施工の条件を資料で確認してください。'},
@@ -11,16 +12,17 @@ export const anchorProducts={
  'sanko-stcw':{maker:'サンコーテクノ',name:'トルコンアンカー STCW',type:'metal',material:'ステンレス・SUS304系',diameters:[8,10,12,16],url:sanko,note:'ウェッジ式。カタログの最大荷重は許容荷重・保証値ではありません。品番・母材条件に適合する許容耐力計算書等から採用値を指定してください。'},
  'sanko-tcwd':{maker:'サンコーテクノ',name:'トルコンアンカー TCW-D',type:'metal',material:'本体：スチール・溶融亜鉛めっき / スリーブ：SUS304',diameters:[8,10,12,16],url:sanko,note:'ウェッジ式。最大荷重を許容耐力に転記しないでください。TCW-Dの品番・母材条件に適合する許容耐力を指定してください。'}
 };
-export const anchorExtraDefaults={catalogId:'custom',spec:'',basis:'',source:'',crack:'unknown',duration:'unknown',installation:''};
+export const anchorExtraDefaults={...autoDefaults,catalogId:'custom',spec:'',basis:'',source:'',crack:'unknown',duration:'unknown',installation:''};
 export function normalizeAnchor(a){return {...anchorExtraDefaults,...a};}
-export function chooseAnchorProduct(a,id){if(id!=='custom'&&!Object.hasOwn(anchorProducts,id))throw Error('未登録のアンカー製品です。');const p=anchorProducts[id];return {...normalizeAnchor(a),catalogId:id,type:p?.type||a.type,product:p?p.maker+' / '+p.name:'',spec:'',basis:'',source:'',installation:'',nt:0,vt:0,confirmed:false};}
-export function anchorMissing(a){const missing=[];const id=a.catalogId||'custom';if(id!=='custom'){
+export function chooseAnchorProduct(a,id){if(id!=='custom'&&!Object.hasOwn(anchorProducts,id))throw Error('未登録のアンカー製品です。');const p=anchorProducts[id];const next={...normalizeAnchor(a),catalogId:id,type:p?.type||a.type,product:p?p.maker+' / '+p.name:'',spec:'',basis:'',source:'',installation:'',nt:0,vt:0,confirmed:false};return p?startAuto(next):{...next,capacityMode:'manual'};}
+export function anchorMissing(a,context={}){if(a.capacityMode==='catalog')return autoCapacity(a,context).issues;const missing=[];const id=a.catalogId||'custom';if(id!=='custom'){
  const p=Object.hasOwn(anchorProducts,id)?anchorProducts[id]:null;if(!p)return ['未登録の製品'];
  if(a.type!==p.type||a.product!==p.maker+' / '+p.name)missing.push('製品と種類の整合');
  if(p.diameters&&!p.diameters.includes(a.diameter))missing.push('製品の対応径');
  for(const [k,label] of [['spec',p.type==='chemical'?'ロッド形式・材質強度区分':'製品品番・全長'],['basis','設計基準・荷重区分'],['source','許容耐力の根拠資料']])if(typeof a[k]!=='string'||!a[k].trim())missing.push(label);
  if(!['cracked','uncracked'].includes(a.crack))missing.push('ひび割れ条件');
- if(!['long','short','seismic'].includes(a.duration))missing.push('荷重区分');
+ if(!['long','short','static','seismic'].includes(a.duration))missing.push('荷重区分');
  }
  if(!a.product?.trim())missing.push('製品名');if(!(a.nt>0&&a.vt>0))missing.push('許容耐力');if(!a.confirmed)missing.push('条件確認');return missing;}
-export function anchorCapacityReady(a){return anchorMissing(a).length===0;}
+export function anchorCapacityReady(a,context={}){return anchorMissing(a,context).length===0;}
+export function effectiveAnchorCapacity(a,context={}){if(a.capacityMode==='catalog')return autoCapacity(a,context);const issues=anchorMissing(a,context);return {ready:issues.length===0,nt:a.nt,vt:a.vt,nominalN:a.nt||null,nominalV:a.vt||null,source:null,row:null,issues,advisories:[]};}

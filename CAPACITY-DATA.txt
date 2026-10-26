@@ -1,0 +1,18 @@
+SUPPORT STUDIO 1.2 — Manufacturer capacity data
+Verified 2026-10-26. Units kN and mm. Source URLs, editions, pages and assumptions are in dist/anchor-capacities.mjs and displayed/exported by the app.
+
+242 rows: Sanko 20 (three products, long/short); HY200 V3 128 (two resins, four rod specifications, eight sizes, cracked/uncracked); HST4/R 94 (two EN concrete classes with only published size/embed/crack combinations).
+
+Sanko: official allowable load PDF, PDF page 6 / printed page 23. AIJ composite structural guideline 2010-based single-anchor table, Fc21. M6/M8 outside cited guideline scope excluded. TCW M12 hef45 is not substituted for STCW or TCW-D. Manufacturer maximum loads are never converted to allowable loads.
+HY200: official Feb-26 technical data, pages 7,9,16,17. Recommended loads at C20/25, single anchor, 50-year reference, temperature range I. Common HAS/HAS-U 5.8, 8.8, A4 and HAS-U HCR rod tables. Non-sustained loading only; selfweight or sustained flag inhibits adoption. Individual PROFIS or equivalent design values can be entered in manual mode.
+HST4: official Sep-26 technical data, pages 8,14,22,23. Recommended loads at C20/25 and C12/15. Cleaned hammer drilling setting requirements. hef30 restricted redundant nonstructural application excluded. EN classes are not automatically converted to JIS Fc.
+
+Exact matching only. Never interpolate embedment/concrete, transfer capacity between rod grades, or use persisted manual values in automatic mode. The stated action factor 1.4 is already part of Hilti recommended loads and is not applied again by lookup.
+
+Automatic checks include registered thickness/spacing/edge bounds and HST4 actual drill depth/remaining back thickness. These do not establish group or shear edge resistance. Adoption requires an independent layout assessment with its recorded reference plus installation/design-basis confirmation. The app does not implement full EN1992-4/AIJ group design, anchor interaction certification, baseplate bending or prying. The linear interaction sum is explicitly a reference check.
+
+Regression verification:
+node test-engine.mjs
+node test-anchors.mjs
+node test-capacities.mjs
+Browser QA: HST4 exact N/V, concrete class changes, applicability reset; HY200 sustained inhibition; Sanko long/short selection; report provenance; console errors.
