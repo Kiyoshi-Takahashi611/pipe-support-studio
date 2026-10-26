@@ -1,3 +1,4 @@
+import {isGas,gasDefaults,gasDensity} from './gas-density.mjs';
 // Reference inputs, not universal design densities. Verified 2026-10-26.
 // Oil initial values are app-selected examples within the cited SDS range.
 export const fluidCatalog={
@@ -11,10 +12,10 @@ export const fluidCatalog={
  custom:{label:'その他（密度を入力）',density:1000,note:'1000 kg/m³は入力例です。実際の内容物の密度へ変更してください。'}
 };
 export function fluidInput(p={}){
- if(Object.hasOwn(p,'fluidType'))return {fluidType:p.fluidType,fluidDensity:p.fluidDensity,fluidDensitySource:p.fluidDensitySource||'manual',fluidCondition:p.fluidCondition||''};
+ if(Object.hasOwn(p,'fluidType'))return {fluidType:p.fluidType,fluidDensity:p.fluidDensity,fluidDensitySource:p.fluidDensitySource||'manual',fluidCondition:p.fluidCondition||'',...(isGas(p.fluidType)?{fluidDensityMode:p.fluidDensityMode||'manual',fluidPressureBasis:p.fluidDensityMode==='pt'?p.fluidPressureBasis:(p.fluidPressureBasis??'gauge'),fluidPressure:p.fluidDensityMode==='pt'?p.fluidPressure:(p.fluidPressure??0),fluidTemperature:p.fluidDensityMode==='pt'?p.fluidTemperature:(p.fluidTemperature??(p.fluidType==='steam'?100:20))}:{})};
  if(p.water!==undefined&&typeof p.water!=='boolean')throw Error('保存された満水条件が不正です。');
  const empty=p.water===false;
  return {fluidType:empty?'empty':'water',fluidDensity:empty?0:(Object.hasOwn(p,'waterDensity')?p.waterDensity:1000),fluidDensitySource:'legacy',fluidCondition:''};
 }
-export function chooseFluid(type){const f=Object.hasOwn(fluidCatalog,type)&&fluidCatalog[type];if(!f)throw Error('配管内容物の種類が不正です。');return {fluidType:type,fluidDensity:f.density,fluidDensitySource:'preset',fluidCondition:''};}
-export function fluidProperties(p){const f=fluidInput(p);if(!Object.hasOwn(fluidCatalog,f.fluidType))throw Error('配管内容物の種類が不正です。');if(!Number.isFinite(f.fluidDensity)||f.fluidDensity<0||(f.fluidType!=='empty'&&f.fluidDensity===0))throw Error('内容物の密度は正の値で入力してください。');if(f.fluidType==='empty'&&f.fluidDensity!==0)throw Error('空管の内容物密度は0です。');return {...f,...fluidCatalog[f.fluidType]};}
+export function chooseFluid(type){const f=Object.hasOwn(fluidCatalog,type)&&fluidCatalog[type];if(!f)throw Error('配管内容物の種類が不正です。');return {fluidType:type,fluidDensity:f.density,fluidDensitySource:'preset',fluidCondition:'',fluidDensityMode:isGas(type)?'pt':'manual',...(isGas(type)?gasDefaults(type):{})};}
+export function fluidProperties(p){const f=fluidInput(p);if(!Object.hasOwn(fluidCatalog,f.fluidType))throw Error('配管内容物の種類が不正です。');if(isGas(f.fluidType)){if(!['pt','manual'].includes(f.fluidDensityMode))throw Error('密度の算出方法が不正です。');if(f.fluidDensityMode==='pt')return {...f,...fluidCatalog[f.fluidType],...gasDensity(f)};}if(!Number.isFinite(f.fluidDensity)||f.fluidDensity<0||(f.fluidType!=='empty'&&f.fluidDensity===0))throw Error('内容物の密度は正の値で入力してください。');if(f.fluidType==='empty'&&f.fluidDensity!==0)throw Error('空管の内容物密度は0です。');return {...f,...fluidCatalog[f.fluidType]};}

@@ -31,3 +31,5 @@
 @media(max-width:1199px) and (min-height:601px){.guide-visuals .model{height:190px}.guide-visuals.with-detail .model,.guide-detail .bolt-plan,.guide-detail .section-svg{height:168px}}
 
 .pipe-main-fields{border-top:1px solid #e3ece4;padding-top:14px}.pipe-main-fields .section-label{font-size:12px;color:#376655}.fluid-reference{background:#f7f8f2;padding:9px 11px;border-radius:6px;font-size:10px;line-height:1.8;color:#7a8067;margin-bottom:12px}.fluid-reference strong{color:#637053}.fluid-reference a{color:#347562}.pipe-mass-summary{background:#edf5ef;border-radius:6px;padding:10px 12px;line-height:1.8;font-size:11px;color:#3f6f59}.pipe-detail-toggle{margin:12px 0}.pipe-config .pipe-settings{margin-top:4px}
+
+.gas-condition{background:#f5f8f5;border:1px solid #dce7de;border-radius:8px;padding:14px;margin:12px 0}.gas-density-result{display:flex;flex-direction:column;gap:5px;padding:12px 0;color:#24574a}.gas-density-result>strong{font-size:23px;font-variant-numeric:tabular-nums}.gas-density-result small{font-size:11px;font-weight:400}
