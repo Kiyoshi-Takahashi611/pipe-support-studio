@@ -16,7 +16,12 @@ export const ordinaryGrades={'4.6':{F:240,label:'炭素鋼 4.6'},'4.8':{F:240,la
 // [long one-plane, long two-plane, short one-plane, short two-plane], kN/bolt.
 export const slipTable={12:[17,33.9,25.4,50.9],16:[30.2,60.3,45.2,90.5],20:[47.1,94.2,70.7,141],22:[57,114,85.5,171],24:[67.9,136,102,204],27:[85.9,172,129,258],30:[106,212,159,318]};
 export function boltDefaults(t={}){const n=Number.isInteger(t.boltCount)&&t.boltCount>0&&t.boltCount<=36?t.boltCount:4,cols=n%2===0?2:1,rows=n/cols;return {method:'bearing',grade:'4.6',diameter:Number(t.boltSpec?.match(/M(\d+)/i)?.[1])||12,period:'long',planes:1,rows,cols,pitchX:50,pitchY:50,hole:14,offsetX:0,offsetY:0,plateMaterial:'SS400',plateT:6,plateW:160,plateH:160,mateMaterial:'SS400',mateT:6,mateW:160,mateH:160,scopeConfirmed:false,fitConfirmed:false,frictionSurface:'standard',slipCoefficient:.45,frictionConfirmed:false,loadCaseConfirmed:false,evidence:''};}
-export function normalizeBoltDesign(t={}){return {...boltDefaults(t),...(t.boltDesign||{})};}
+export const boltEndKeys=['column','rightColumn','tip'];
+export function normalizeBoltDesign(t={},endKey){const own=endKey&&t.boltDesigns&&Object.hasOwn(t.boltDesigns,endKey)?t.boltDesigns[endKey]:t.boltDesign;return {...boltDefaults(t),...(own||{})};}
+// Copy the legacy shared design once into independent flat objects. Inactive ends
+// are retained so moving portal legs or switching tip ties cannot swap settings.
+export function initializeBoltDesigns(t={}){return Object.fromEntries(boltEndKeys.map(key=>[key,normalizeBoltDesign(t,key)]));}
+export function copyBoltDesigns(t={}){return t.boltDesigns?{boltDesigns:initializeBoltDesigns(t)}:{};}
 export const boltCount=d=>d.rows*d.cols;
 export function boltLabel(d){return `${ordinaryGrades[d.grade]?.label||d.grade} / M${d.diameter}`;}
 export function layoutBolts(d){if(!Number.isInteger(d.rows)||!Number.isInteger(d.cols)||d.rows<1||d.cols<1||d.rows>6||d.cols>6)throw Error('縦・横の本数はそれぞれ1〜6本です。');if(!Number.isFinite(d.pitchX)||!Number.isFinite(d.pitchY)||d.pitchX<0||d.pitchY<0)throw Error('ボルトピッチを確認してください。');return Array.from({length:d.rows},(_,r)=>Array.from({length:d.cols},(_,c)=>({id:r*d.cols+c+1,x:(c-(d.cols-1)/2)*d.pitchX,y:(r-(d.rows-1)/2)*d.pitchY}))).flat();}

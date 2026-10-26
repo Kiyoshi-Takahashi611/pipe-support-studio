@@ -1,4 +1,4 @@
-import {normalizeBoltDesign,boltCount,boltLabel} from './bolt-joints.mjs';
+import {normalizeBoltDesign,copyBoltDesigns,boltCount,boltLabel} from './bolt-joints.mjs';
 import {newPipe,normalizePipe,pipeWeight} from './pipe-loads.mjs';
 // Dimension-driven in-plane rack. Input y is distance from base (ceiling: down).
 // All crossing steel centerlines are joined and split, pipe load applied at its center X.
@@ -10,10 +10,11 @@ const sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y});
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 function onLine(p,line){const v=sub(line.b,line.a),q=sub(p,line.a),L=distance(line.a,line.b);return Math.abs(cross(v,q))<=EPS*L&&q.x*v.x+q.y*v.y>=-EPS*L&&q.x*v.x+q.y*v.y<=L*L+EPS*L;}
 export function defaultRack(s){return {tipTie:s.type!=='portal',braceMode:s.type==='brace'?'lower':'none',braceDrop:s.h*.65,braceX:s.w,left:0,right:s.w,tiers:[{height:s.h,joint:'weld',boltDesign:normalizeBoltDesign(),boltSpec:'M12',boltCount:4,jointNote:'',pipes:[newPipe(mm(s.w/3)),newPipe(mm(2*s.w/3))]}],braces:s.type==='brace'?[{ax:0,ay:mm(s.h*.35),bx:s.w,by:s.h}]:[]};}
-export function resizeTiers(rack,count,height,width){if(!Number.isInteger(count)||count<1||count>6)throw Error('段数は1〜6で指定してください。');return {...rack,tiers:Array.from({length:count},(_,i)=>({...rack.tiers[i],joint:rack.tiers[i]?.joint||'weld',boltDesign:normalizeBoltDesign(rack.tiers[i]),boltSpec:rack.tiers[i]?.boltSpec||'M12',boltCount:rack.tiers[i]?.boltCount||4,jointNote:rack.tiers[i]?.jointNote||'',height:mm(height*(i+1)/count),pipes:rack.tiers[i]?.pipes.map(p=>({...p}))||[newPipe(mm(width/3)),newPipe(mm(2*width/3))]}))};}
+export function resizeTiers(rack,count,height,width){if(!Number.isInteger(count)||count<1||count>6)throw Error('段数は1〜6で指定してください。');return {...rack,tiers:Array.from({length:count},(_,i)=>({...rack.tiers[i],joint:rack.tiers[i]?.joint||'weld',boltDesign:normalizeBoltDesign(rack.tiers[i]),...copyBoltDesigns(rack.tiers[i]),boltSpec:rack.tiers[i]?.boltSpec||'M12',boltCount:rack.tiers[i]?.boltCount||4,jointNote:rack.tiers[i]?.jointNote||'',height:mm(height*(i+1)/count),pipes:rack.tiers[i]?.pipes.map(p=>({...p}))||[newPipe(mm(width/3)),newPipe(mm(2*width/3))]}))};}
 export const jointLabels={weld:'溶接・剛接', 'bolt-rigid':'ボルト・曲げを伝達（剛接）','bolt-pin':'ボルト・回転自由（ピン）'};
-export function normalizeRack(r){return {...r,tipTie:r.tipTie??true,braceMode:r.braceMode||'custom',braceDrop:r.braceDrop??100,braceX:r.braceX??r.braces?.[0]?.bx??0,tiers:r.tiers.map(t=>({...t,joint:t.joint||'weld',boltDesign:normalizeBoltDesign(t),boltSpec:t.boltSpec||'M12',boltCount:t.boltCount??4,jointNote:t.jointNote||'',pipes:t.pipes.map(normalizePipe)}))};}
+export function normalizeRack(r){return {...r,tipTie:r.tipTie??true,braceMode:r.braceMode||'custom',braceDrop:r.braceDrop??100,braceX:r.braceX??r.braces?.[0]?.bx??0,tiers:r.tiers.map(t=>({...t,joint:t.joint||'weld',boltDesign:normalizeBoltDesign(t),...copyBoltDesigns(t),boltSpec:t.boltSpec||'M12',boltCount:t.boltCount??4,jointNote:t.jointNote||'',pipes:t.pipes.map(normalizePipe)}))};}
 export function hasTipTie(s){return s.rack.tipTie!==false&&s.rack.tiers.length>1;}
+export function connectionPositions(s){const r=s.rack,positions=s.type==='portal'?[{key:'column',label:'左柱側',x:r.left},{key:'rightColumn',label:Math.abs(r.right-s.w)<EPS?'右柱側（先端）':'右柱側',x:r.right}]:[{key:'column',label:'柱側',x:0}];if(hasTipTie(s)&&!positions.some(p=>Math.abs(p.x-s.w)<EPS))positions.push({key:'tip',label:'先端側',x:s.w});return positions;}
 export function lowerBrace(s){const r=s.rack,low=s.mount==='ceiling'?Math.max(...r.tiers.map(t=>t.height)):Math.min(...r.tiers.map(t=>t.height)),left=s.type==='portal'?r.left:0,available=s.mount==='ceiling'?low-Math.max(0,...r.tiers.filter(t=>t.height<low).map(t=>t.height)):low;
  const braceX=hasTipTie(s)?s.w:r.braceX;
  if(!Number.isFinite(r.braceDrop)||r.braceDrop<=0||!Number.isFinite(braceX)||braceX<=left||braceX>s.w)throw Error('下段ブレースの落差・梁側X位置を確認してください。');
@@ -58,7 +59,7 @@ export function buildRack(s){
  lines.forEach((l,index)=>{const ps=l.points.filter((p,i,arr)=>!arr.slice(0,i).some(q=>distance(p,q)<EPS)).sort((p,q)=>distance(l.a,p)-distance(l.a,q));for(let i=0;i<ps.length-1;i++){const length=distance(ps[i],ps[i+1]);if(length<1)throw Error('取付点・配管荷重点が近すぎます。部材の分割長が1 mm以上になるよう調整してください。');const m={id:members.length+1,a:node(ps[i]),b:node(ps[i+1]),section:s.defaultSection,material:s.material,k:1,group:index+1,kind:l.kind,tier:l.tier,physicalLength:distance(l.a,l.b)};
  if(l.kind==='tier'&&l.joint==='bolt-pin')for(const [end,p,n] of [['A',ps[i],m.a],['B',ps[i+1],m.b]])if(jointXs.some(x=>Math.abs(x-p.x)<EPS))m['rotation'+end]='tier-'+l.tier+'-node-'+n;
  members.push(m);}});
- for(let i=0;i<r.tiers.length;i++)for(const x of jointXs){const t=r.tiers[i];jointVisuals.push({node:node({x,y:t.height}),x,y:sign*t.height,tier:i+1,joint:t.joint||'weld',boltSpec:boltLabel(normalizeBoltDesign(t)),boltCount:boltCount(normalizeBoltDesign(t)),boltDesign:normalizeBoltDesign(t),note:t.jointNote||''});}
+ for(let i=0;i<r.tiers.length;i++)for(const {x,key,label} of connectionPositions(s)){const t=r.tiers[i],design=normalizeBoltDesign(t,key);jointVisuals.push({node:node({x,y:t.height}),x,y:sign*t.height,tier:i+1,endKey:key,endLabel:label,joint:t.joint||'weld',boltSpec:boltLabel(design),boltCount:boltCount(design),boltDesign:design,note:t.jointNote||''});}
  const loads=pipes.map(p=>({node:node({x:p.x,y:p.y}),fx:0,fy:-p.load,mz:0,pipe:true,sustained:p.weight.mode==='auto',tier:p.tier,number:p.number}));
  if(nodes.length>80||members.length>160)throw Error('生成モデルの上限（80節点・160部材）を超えました。配管かブレースを減らしてください。');
  // Clearance is only a circle-outline check; no fabricated steel profile or insulation thickness is inferred.
