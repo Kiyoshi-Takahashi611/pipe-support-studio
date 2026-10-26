@@ -40,14 +40,21 @@ export function steamDensity(p,T){
  return 1/v;
 }
 export const isGas=type=>type==='air'||type==='steam';
-export function gasDefaults(type){return {fluidDensityMode:'pt',fluidPressureBasis:'gauge',fluidPressure:0,fluidTemperature:type==='steam'?100:20};}
+export function gasDefaults(type){return {fluidDensityMode:'pt',fluidPressureBasis:'gauge',fluidPressure:0,fluidTemperature:type==='steam'?100:20,...(type==='steam'?{steamState:'superheated'}:{})};}
 export function gasDensity(p){
  if(!isGas(p.fluidType))throw Error('圧力・温度による密度計算はエアー・蒸気のみです。');
- const pressure=p.fluidPressure,temperature=p.fluidTemperature,basis=p.fluidPressureBasis;
+ const pressure=p.fluidPressure,basis=p.fluidPressureBasis,steamState=p.steamState??'superheated',saturated=p.fluidType==='steam'&&steamState==='saturated';
+ if(p.fluidType==='steam'&&!['saturated','superheated'].includes(steamState))throw Error('蒸気の状態を選択してください。');
+ let temperature=p.fluidTemperature;
  if(!['gauge','absolute'].includes(basis))throw Error('圧力の基準を選択してください。');
- if(!Number.isFinite(pressure)||!Number.isFinite(temperature))throw Error('圧力と温度を数値で入力してください。');
- const absolutePressure=pressure+(basis==='gauge'?.101325:0),T=temperature+273.15;
+ if(!Number.isFinite(pressure)||(!saturated&&!Number.isFinite(temperature)))throw Error(saturated?'圧力を数値で入力してください。':'圧力と温度を数値で入力してください。');
+ const absolutePressure=pressure+(basis==='gauge'?.101325:0);
  if(absolutePressure<=0)throw Error('絶対圧は0 MPaより大きくしてください（ゲージ圧＋0.101325 MPa）。');
+ if(saturated){
+  if(absolutePressure<saturationPressure(273.15)||absolutePressure>saturationPressure(623.15))throw Error('飽和蒸気の自動計算範囲は絶対圧0.000611213〜16.529164 MPa（飽和温度0〜350℃）です。範囲外は密度を手入力してください。');
+  temperature=saturationTemperature(absolutePressure)-273.15;
+ }
+ const T=temperature+273.15;
  let density,note;
  if(p.fluidType==='air'){
   // Deliberately bounded app scope, not a claimed precision boundary for ideal air.
@@ -56,8 +63,9 @@ export function gasDensity(p){
   note='乾燥空気の理想気体近似：ρ=Pabs/(287.05×T)。湿度・実在気体補正は含みません。本アプリの範囲：−50〜200℃・絶対圧2 MPa以下。';
  }else{
   density=steamDensity(absolutePressure,T);
-  note='IAPWS-IF97 Region 2（0〜800℃・蒸気域）の単相蒸気。飽和線上は乾き飽和蒸気（乾き度1）として計算。湿り蒸気・凝縮水・水張り試験時の重量は含みません。';
+  if(!saturated&&absolutePressure>=saturationPressure(273.15)&&absolutePressure<=22.064&&T<=saturationTemperature(absolutePressure)+1e-7)throw Error('過熱蒸気は飽和温度より高い温度を入力してください。飽和蒸気の場合は「飽和蒸気」を選択してください。');
+  note=saturated?'乾き飽和蒸気（乾き度1）。IAPWS-IF97 Region 4で圧力から温度、Region 2で密度を計算。範囲：絶対圧0.000611213〜16.529164 MPa（0〜350℃）。湿り蒸気・凝縮水・水張り試験時の重量は含みません。':'過熱蒸気：入力圧力・温度からIAPWS-IF97 Region 2で密度を計算（0〜800℃の適用域）。湿り蒸気・凝縮水・水張り試験時の重量は含みません。';
  }
  const saturationC=p.fluidType==='steam'&&absolutePressure>=saturationPressure(273.15)&&absolutePressure<=22.064?saturationTemperature(absolutePressure)-273.15:null;
- return {fluidDensity:density,fluidDensitySource:'calculated',absolutePressure,temperatureK:T,saturationC,note,source:gasSources[p.fluidType],calculationCondition:`${pressure} MPa（${basis==='gauge'?'ゲージ圧':'絶対圧'}） / ${temperature}℃ / 絶対圧 ${absolutePressure.toFixed(6)} MPa${basis==='gauge'?'（大気圧0.101325 MPaを加算）':''}`};
+ return {fluidDensity:density,fluidDensitySource:'calculated',absolutePressure,temperatureK:T,operatingTemperature:temperature,...(p.fluidType==='steam'?{steamState}:{}),saturationC,note,source:gasSources[p.fluidType],calculationCondition:`${p.fluidType==='steam'?(saturated?'飽和蒸気（乾き度1） / ':'過熱蒸気 / '):''}${pressure} MPa（${basis==='gauge'?'ゲージ圧':'絶対圧'}） / ${saturated?'自動算定温度 '+temperature.toFixed(6):temperature}℃ / 絶対圧 ${absolutePressure.toFixed(6)} MPa${basis==='gauge'?'（大気圧0.101325 MPaを加算）':''}`};
 }
