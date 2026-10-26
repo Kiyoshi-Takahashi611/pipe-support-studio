@@ -12,7 +12,7 @@ export const fluidCatalog={
  custom:{label:'その他（密度を入力）',density:1000,note:'1000 kg/m³は入力例です。実際の内容物の密度へ変更してください。'}
 };
 export function fluidInput(p={}){
- if(Object.hasOwn(p,'fluidType'))return {fluidType:p.fluidType,fluidDensity:p.fluidDensity,fluidDensitySource:p.fluidDensitySource||'manual',fluidCondition:p.fluidCondition||'',...(isGas(p.fluidType)?{fluidDensityMode:p.fluidDensityMode||'manual',...(p.fluidType==='steam'?{steamState:p.steamState??'superheated'}:{}),fluidPressureBasis:p.fluidDensityMode==='pt'?p.fluidPressureBasis:(p.fluidPressureBasis??'gauge'),fluidPressure:p.fluidDensityMode==='pt'?p.fluidPressure:(p.fluidPressure??0),fluidTemperature:p.fluidDensityMode==='pt'?p.fluidTemperature:(p.fluidTemperature??(p.fluidType==='steam'?100:20))}:{})};
+ if(Object.hasOwn(p,'fluidType'))return {fluidType:p.fluidType,fluidDensity:p.fluidDensity,fluidDensitySource:p.fluidDensitySource||'manual',fluidCondition:p.fluidCondition||'',...(isGas(p.fluidType)?{fluidDensityMode:p.fluidDensityMode||'manual',...(p.fluidType==='steam'?{steamState:p.steamState??'superheated',steamQualityPercent:Object.hasOwn(p,'steamQualityPercent')?p.steamQualityPercent:100}:{}),fluidPressureBasis:p.fluidDensityMode==='pt'?p.fluidPressureBasis:(p.fluidPressureBasis??'gauge'),fluidPressure:p.fluidDensityMode==='pt'?p.fluidPressure:(p.fluidPressure??0),fluidTemperature:p.fluidDensityMode==='pt'?p.fluidTemperature:(p.fluidTemperature??(p.fluidType==='steam'?100:20))}:{})};
  if(p.water!==undefined&&typeof p.water!=='boolean')throw Error('保存された満水条件が不正です。');
  const empty=p.water===false;
  return {fluidType:empty?'empty':'water',fluidDensity:empty?0:(Object.hasOwn(p,'waterDensity')?p.waterDensity:1000),fluidDensitySource:'legacy',fluidCondition:''};

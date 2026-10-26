@@ -1,8 +1,9 @@
 // IAPWS R7-97(2012), International Association for the Properties of Water and Steam.
+// Region 1: Tables 2–5, Eq. 7.
 // Region 2: Tables 11–14, Eqs. 15–17. Region 4: Table 34, Eqs. 30–31.
 // B23: Table 1, Eq. 5. Coefficients reproduced with attribution per release permission.
 export const gasSources={
- steam:{label:'IAPWS-IF97（IAPWS）',url:'https://iapws.org/technical-guidance/release/IF97-Rev',page:'Region 2 / Region 4・表11〜15、34〜36'},
+ steam:{label:'IAPWS-IF97（IAPWS）',url:'https://iapws.org/technical-guidance/release/IF97-Rev',page:'Region 1 / 2 / 4・表2〜5、11〜15、34〜36'},
  air:{label:'アイオワ大学・Fluid Mechanics（乾燥空気の状態方程式）',url:'https://stern.lab.uiowa.edu/sites/stern.lab.uiowa.edu/files/2024-11/Chapter1.pdf',page:'Chapter 1・12頁 / R=287.05 J/(kg·K)'}
 };
 const residual=[
@@ -39,8 +40,33 @@ export function steamDensity(p,T){
  if(!Number.isFinite(v)||v<=0)throw Error('蒸気密度を計算できません。');
  return 1/v;
 }
+// Region 1 Gibbs coefficients from IAPWS Table 2; the I=0 terms have zero pressure derivative.
+const liquidTerms=[
+[1,-9,.28319080123804e-3],[1,-7,-.60706301565874e-3],[1,-1,-.18990068218419e-1],[1,0,-.32529748770505e-1],[1,1,-.21841717175414e-1],[1,3,-.52838357969930e-4],
+[2,-3,-.47184321073267e-3],[2,0,-.30001780793026e-3],[2,1,.47661393906987e-4],[2,3,-.44141845330846e-5],[2,17,-.72694996297594e-15],
+[3,-4,-.31679644845054e-4],[3,0,-.28270797985312e-5],[3,6,-.85205128120103e-9],[4,-5,-.22425281908000e-5],[4,-2,-.65171222895601e-6],[4,10,-.14341729937924e-12],
+[5,-8,-.40516996860117e-6],[8,-11,-.12734301741641e-8],[8,-6,-.17424871230634e-9],[21,-29,-.68762131295531e-18],[23,-31,.14478307828521e-19],[29,-38,.26335781662795e-22],[30,-39,-.11947622640071e-22],[31,-40,.18228094581404e-23],[32,-41,-.93537087292458e-25]
+];
+export function liquidDensity(p,T){
+ if(!Number.isFinite(p)||p<=0||p>100||!Number.isFinite(T)||T<273.15-1e-8||T>623.15+1e-8)throw Error('飽和水の密度計算範囲外です。');
+ T=Math.min(623.15,Math.max(273.15,T));
+ if(p<saturationPressure(T)*(1-1e-9))throw Error('Region 1の液相範囲外です。');
+ const pi=p/16.53,tau=1386/T;
+ const d=liquidTerms.reduce((sum,[I,J,c])=>sum-c*I*(7.1-pi)**(I-1)*(tau-1.222)**J,0);
+ const v=.461526*T*d/(16.53*1000);
+ if(!Number.isFinite(v)||v<=0)throw Error('飽和水密度を計算できません。');
+ return 1/v;
+}
+export const mixtureSource={label:'Purdue大学：乾き度と混合物の比体積',url:'https://engineering.purdue.edu/~wassgren/teaching/ME20000/NotesAndReading/Lec08_Reading_Wassgren.pdf',page:'3.5.2 Quality・式3.51〜3.56'};
+export function saturatedMixture(p,qualityPercent=100){
+ if(!Number.isFinite(qualityPercent)||qualityPercent<0||qualityPercent>100)throw Error('乾き度は0〜100％で入力してください。');
+ if(!Number.isFinite(p)||p<saturationPressure(273.15)||p>saturationPressure(623.15))throw Error('飽和蒸気の自動計算範囲は絶対圧0.000611213〜16.529164 MPa（飽和温度0〜350℃）です。');
+ const T=saturationTemperature(p),liquidSpecificVolume=1/liquidDensity(p,T),vaporSpecificVolume=1/steamDensity(p,T),quality=qualityPercent/100;
+ const mixtureSpecificVolume=(1-quality)*liquidSpecificVolume+quality*vaporSpecificVolume;
+ return {qualityPercent,quality,liquidSpecificVolume,vaporSpecificVolume,mixtureSpecificVolume,fluidDensity:1/mixtureSpecificVolume,mixtureSource,phaseLabel:quality===1?'乾き飽和蒸気':quality===0?'飽和水':'湿り蒸気'};
+}
 export const isGas=type=>type==='air'||type==='steam';
-export function gasDefaults(type){return {fluidDensityMode:'pt',fluidPressureBasis:'gauge',fluidPressure:0,fluidTemperature:type==='steam'?100:20,...(type==='steam'?{steamState:'superheated'}:{})};}
+export function gasDefaults(type){return {fluidDensityMode:'pt',fluidPressureBasis:'gauge',fluidPressure:0,fluidTemperature:type==='steam'?100:20,...(type==='steam'?{steamState:'superheated',steamQualityPercent:100}:{})};}
 export function gasDensity(p){
  if(!isGas(p.fluidType))throw Error('圧力・温度による密度計算はエアー・蒸気のみです。');
  const pressure=p.fluidPressure,basis=p.fluidPressureBasis,steamState=p.steamState??'superheated',saturated=p.fluidType==='steam'&&steamState==='saturated';
@@ -55,7 +81,7 @@ export function gasDensity(p){
   temperature=saturationTemperature(absolutePressure)-273.15;
  }
  const T=temperature+273.15;
- let density,note;
+ let density,note,mixture={};
  if(p.fluidType==='air'){
   // Deliberately bounded app scope, not a claimed precision boundary for ideal air.
   if(temperature< -50||temperature>200||absolutePressure>2)throw Error('エアーの自動計算範囲は−50〜200℃・絶対圧2 MPa以下です。範囲外は密度を手入力してください。');
@@ -64,8 +90,9 @@ export function gasDensity(p){
  }else{
   density=steamDensity(absolutePressure,T);
   if(!saturated&&absolutePressure>=saturationPressure(273.15)&&absolutePressure<=22.064&&T<=saturationTemperature(absolutePressure)+1e-7)throw Error('過熱蒸気は飽和温度より高い温度を入力してください。飽和蒸気の場合は「飽和蒸気」を選択してください。');
-  note=saturated?'乾き飽和蒸気（乾き度1）。IAPWS-IF97 Region 4で圧力から温度、Region 2で密度を計算。範囲：絶対圧0.000611213〜16.529164 MPa（0〜350℃）。湿り蒸気・凝縮水・水張り試験時の重量は含みません。':'過熱蒸気：入力圧力・温度からIAPWS-IF97 Region 2で密度を計算（0〜800℃の適用域）。湿り蒸気・凝縮水・水張り試験時の重量は含みません。';
+  if(saturated){const q=Object.hasOwn(p,'steamQualityPercent')?p.steamQualityPercent:100;if(!Number.isFinite(q))throw Error('乾き度は0〜100％で入力してください。');mixture=saturatedMixture(absolutePressure,q);density=mixture.fluidDensity;}
+  note=saturated?'飽和水・蒸気の熱平衡混合物：x=乾き度/100、ρ=1/[(1−x)vf+xvg]。IF97 Region 1・2でvf・vg、Region 4で温度を算定。管内に一様に分布する混合物の平均重量として計算。別途の滞留水・気液の速度差による液体滞留量・水張り試験時の重量は含みません。範囲：絶対圧0.000611213〜16.529164 MPa（0〜350℃）。':'過熱蒸気：入力圧力・温度からIAPWS-IF97 Region 2で密度を計算（0〜800℃の適用域）。湿り蒸気・凝縮水・水張り試験時の重量は含みません。';
  }
  const saturationC=p.fluidType==='steam'&&absolutePressure>=saturationPressure(273.15)&&absolutePressure<=22.064?saturationTemperature(absolutePressure)-273.15:null;
- return {fluidDensity:density,fluidDensitySource:'calculated',absolutePressure,temperatureK:T,operatingTemperature:temperature,...(p.fluidType==='steam'?{steamState}:{}),saturationC,note,source:gasSources[p.fluidType],calculationCondition:`${p.fluidType==='steam'?(saturated?'飽和蒸気（乾き度1） / ':'過熱蒸気 / '):''}${pressure} MPa（${basis==='gauge'?'ゲージ圧':'絶対圧'}） / ${saturated?'自動算定温度 '+temperature.toFixed(6):temperature}℃ / 絶対圧 ${absolutePressure.toFixed(6)} MPa${basis==='gauge'?'（大気圧0.101325 MPaを加算）':''}`};
+ return {...mixture,fluidDensity:density,fluidDensitySource:'calculated',absolutePressure,temperatureK:T,operatingTemperature:temperature,...(p.fluidType==='steam'?{steamState}:{}),saturationC,note,source:gasSources[p.fluidType],calculationCondition:`${p.fluidType==='steam'?(saturated?`${mixture.phaseLabel}（乾き度 ${mixture.qualityPercent}％ / x=${mixture.quality}） / `:'過熱蒸気 / '):''}${pressure} MPa（${basis==='gauge'?'ゲージ圧':'絶対圧'}） / ${saturated?'自動算定温度 '+temperature.toFixed(6):temperature}℃ / 絶対圧 ${absolutePressure.toFixed(6)} MPa${basis==='gauge'?'（大気圧0.101325 MPaを加算）':''}`};
 }
