@@ -1,0 +1,4 @@
+interface:
+  display_name: "配管サポートアプリの保守"
+  short_description: "配管架台アプリの計算・入力を検証し、サイトとGitHubを更新"
+  default_prompt: "$pipe-support-maintenance を使い、配管サポート計算アプリを修正し、検証してサイトとGitHubに反映してください。"
