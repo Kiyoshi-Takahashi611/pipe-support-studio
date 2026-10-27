@@ -1,0 +1,642 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Pipe support studio: dedicated login and operations portal membership",
+  "Parameters": {
+    "CustomDomainName": {
+      "Type": "String",
+      "Default": ""
+    },
+    "AcmCertificateArn": {
+      "Type": "String",
+      "Default": ""
+    }
+  },
+  "Conditions": {
+    "HasDomain": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "CustomDomainName"
+            },
+            ""
+          ]
+        }
+      ]
+    }
+  },
+  "Resources": {
+    "AppUserPool": {
+      "Type": "AWS::Cognito::UserPool",
+      "Properties": {
+        "UserPoolName": {
+          "Fn::Sub": "${AWS::StackName}-users"
+        },
+        "UsernameAttributes": [
+          "email"
+        ],
+        "UsernameConfiguration": {
+          "CaseSensitive": false
+        },
+        "AutoVerifiedAttributes": [
+          "email"
+        ],
+        "UserAttributeUpdateSettings": {
+          "AttributesRequireVerificationBeforeUpdate": [
+            "email"
+          ]
+        },
+        "Policies": {
+          "PasswordPolicy": {
+            "MinimumLength": 8,
+            "RequireUppercase": true,
+            "RequireLowercase": true,
+            "RequireNumbers": true,
+            "RequireSymbols": false,
+            "TemporaryPasswordValidityDays": 7
+          }
+        },
+        "AccountRecoverySetting": {
+          "RecoveryMechanisms": [
+            {
+              "Name": "verified_email",
+              "Priority": 1
+            }
+          ]
+        },
+        "EmailConfiguration": {
+          "EmailSendingAccount": "DEVELOPER",
+          "From": "\u30e1\u30d3\u30c6\u30c3\u30af <noreply@mebiteq.jp>",
+          "SourceArn": {
+            "Fn::Sub": "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/mebiteq.jp"
+          }
+        },
+        "AdminCreateUserConfig": {
+          "AllowAdminCreateUserOnly": true,
+          "InviteMessageTemplate": {
+            "EmailSubject": "\u3010\u914d\u7ba1\u30b5\u30dd\u30fc\u30c8\u69cb\u9020\u8a08\u7b97\u3011\u30ed\u30b0\u30a4\u30f3\u60c5\u5831",
+            "EmailMessage": "\u914d\u7ba1\u30b5\u30dd\u30fc\u30c8\u69cb\u9020\u8a08\u7b97\u30a2\u30d7\u30ea\u306e\u30ed\u30b0\u30a4\u30f3\u60c5\u5831\u3067\u3059\u3002<br>https://pipe-support.mebiteq.jp/<br>\u30ed\u30b0\u30a4\u30f3ID\uff1a{username}<br>\u4eee\u30d1\u30b9\u30ef\u30fc\u30c9\uff1a<br>{####}<br>\u521d\u56de\u30ed\u30b0\u30a4\u30f3\u6642\u306b8\u6587\u5b57\u4ee5\u4e0a\u30fb\u82f1\u5927\u6587\u5b57\u30fb\u82f1\u5c0f\u6587\u5b57\u30fb\u6570\u5b57\u3092\u542b\u3080\u65b0\u3057\u3044\u30d1\u30b9\u30ef\u30fc\u30c9\u3092\u8a2d\u5b9a\u3057\u3066\u304f\u3060\u3055\u3044\u3002\u4eee\u30d1\u30b9\u30ef\u30fc\u30c9\u306e\u6709\u52b9\u671f\u9650\u306f7\u65e5\u3067\u3059\u3002\u307b\u304b\u306eMTQ\u30a2\u30d7\u30ea\u3068\u306f\u30d1\u30b9\u30ef\u30fc\u30c9\u304c\u5225\u3067\u3059\u3002"
+          }
+        },
+        "VerificationMessageTemplate": {
+          "DefaultEmailOption": "CONFIRM_WITH_CODE",
+          "EmailSubject": "\u3010\u914d\u7ba1\u30b5\u30dd\u30fc\u30c8\u69cb\u9020\u8a08\u7b97\u3011\u78ba\u8a8d\u30b3\u30fc\u30c9",
+          "EmailMessage": "\u78ba\u8a8d\u30b3\u30fc\u30c9\uff1a{####}<br>\u5fc3\u5f53\u305f\u308a\u306e\u306a\u3044\u5834\u5408\u306f\u3001\u3053\u306e\u30e1\u30fc\u30eb\u3092\u7834\u68c4\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        }
+      },
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain"
+    },
+    "AppUserPoolClient": {
+      "Type": "AWS::Cognito::UserPoolClient",
+      "Properties": {
+        "ClientName": {
+          "Fn::Sub": "${AWS::StackName}-web"
+        },
+        "UserPoolId": {
+          "Ref": "AppUserPool"
+        },
+        "GenerateSecret": false,
+        "PreventUserExistenceErrors": "ENABLED",
+        "ExplicitAuthFlows": [
+          "ALLOW_USER_PASSWORD_AUTH",
+          "ALLOW_REFRESH_TOKEN_AUTH"
+        ],
+        "ReadAttributes": [
+          "email",
+          "email_verified",
+          "name"
+        ],
+        "WriteAttributes": [
+          "name"
+        ],
+        "EnableTokenRevocation": true,
+        "RefreshTokenValidity": 1,
+        "AccessTokenValidity": 1,
+        "IdTokenValidity": 1
+      }
+    },
+    "WebBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        }
+      },
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain"
+    },
+    "OAC": {
+      "Type": "AWS::CloudFront::OriginAccessControl",
+      "Properties": {
+        "OriginAccessControlConfig": {
+          "Name": {
+            "Fn::Sub": "${AWS::StackName}-oac"
+          },
+          "OriginAccessControlOriginType": "s3",
+          "SigningBehavior": "always",
+          "SigningProtocol": "sigv4"
+        }
+      }
+    },
+    "Distribution": {
+      "Type": "AWS::CloudFront::Distribution",
+      "Properties": {
+        "DistributionConfig": {
+          "Enabled": true,
+          "Comment": "\u914d\u7ba1\u30b5\u30dd\u30fc\u30c8\u69cb\u9020\u8a08\u7b97 / MEBITEQ",
+          "DefaultRootObject": "index.html",
+          "PriceClass": "PriceClass_100",
+          "HttpVersion": "http2",
+          "Aliases": {
+            "Fn::If": [
+              "HasDomain",
+              [
+                {
+                  "Ref": "CustomDomainName"
+                }
+              ],
+              {
+                "Ref": "AWS::NoValue"
+              }
+            ]
+          },
+          "ViewerCertificate": {
+            "Fn::If": [
+              "HasDomain",
+              {
+                "AcmCertificateArn": {
+                  "Ref": "AcmCertificateArn"
+                },
+                "SslSupportMethod": "sni-only",
+                "MinimumProtocolVersion": "TLSv1.2_2021"
+              },
+              {
+                "CloudFrontDefaultCertificate": true
+              }
+            ]
+          },
+          "Origins": [
+            {
+              "Id": "Web",
+              "DomainName": {
+                "Fn::GetAtt": [
+                  "WebBucket",
+                  "RegionalDomainName"
+                ]
+              },
+              "OriginAccessControlId": {
+                "Fn::GetAtt": [
+                  "OAC",
+                  "Id"
+                ]
+              },
+              "S3OriginConfig": {
+                "OriginAccessIdentity": ""
+              }
+            }
+          ],
+          "DefaultCacheBehavior": {
+            "TargetOriginId": "Web",
+            "ViewerProtocolPolicy": "redirect-to-https",
+            "AllowedMethods": [
+              "GET",
+              "HEAD"
+            ],
+            "CachedMethods": [
+              "GET",
+              "HEAD"
+            ],
+            "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+            "Compress": true
+          }
+        }
+      }
+    },
+    "WebBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "WebBucket"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cloudfront.amazonaws.com"
+              },
+              "Action": "s3:GetObject",
+              "Resource": {
+                "Fn::Sub": "${WebBucket.Arn}/*"
+              },
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceArn": {
+                    "Fn::Sub": "arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "ApiRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        ],
+        "Policies": [
+          {
+            "PolicyName": "ReadMembership",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "dynamodb:GetItem",
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/mebiteq-portal-data"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "AccessFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": {
+          "Fn::Sub": "${AWS::StackName}-access"
+        },
+        "Runtime": "python3.12",
+        "Handler": "index.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "ApiRole",
+            "Arn"
+          ]
+        },
+        "Timeout": 10,
+        "MemorySize": 128,
+        "Environment": {
+          "Variables": {
+            "CLIENT_ID": {
+              "Ref": "AppUserPoolClient"
+            },
+            "PORTAL_TABLE_NAME": "mebiteq-portal-data",
+            "MEMBERSHIP_CACHE_TTL": "0",
+            "ALLOWED_ORIGINS": {
+              "Fn::Sub": "https://pipe-support.mebiteq.jp,https://${Distribution.DomainName}"
+            }
+          }
+        },
+        "Code": {
+          "ZipFile": "def handler(event, context):\n    return {\"statusCode\":503,\"body\":\"{}\"}\n"
+        }
+      }
+    },
+    "AccessLogs": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Sub": "/aws/lambda/${AccessFunction}"
+        },
+        "RetentionInDays": 30
+      }
+    },
+    "Api": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-api"
+        }
+      }
+    },
+    "Authorizer": {
+      "Type": "AWS::ApiGateway::Authorizer",
+      "Properties": {
+        "Name": "Cognito",
+        "Type": "COGNITO_USER_POOLS",
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "IdentitySource": "method.request.header.Authorization",
+        "IdentityValidationExpression": {
+          "Fn::Sub": "^${AppUserPoolClient}$"
+        },
+        "ProviderARNs": [
+          {
+            "Fn::GetAtt": [
+              "AppUserPool",
+              "Arn"
+            ]
+          }
+        ]
+      }
+    },
+    "Me": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "ParentId": {
+          "Fn::GetAtt": [
+            "Api",
+            "RootResourceId"
+          ]
+        },
+        "PathPart": "me"
+      }
+    },
+    "MeGET": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "ResourceId": {
+          "Ref": "Me"
+        },
+        "HttpMethod": "GET",
+        "AuthorizationType": "COGNITO_USER_POOLS",
+        "Integration": {
+          "Type": "AWS_PROXY",
+          "IntegrationHttpMethod": "POST",
+          "Uri": {
+            "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AccessFunction.Arn}/invocations"
+          }
+        },
+        "AuthorizerId": {
+          "Ref": "Authorizer"
+        }
+      }
+    },
+    "MeOPTIONS": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "ResourceId": {
+          "Ref": "Me"
+        },
+        "HttpMethod": "OPTIONS",
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "Type": "AWS_PROXY",
+          "IntegrationHttpMethod": "POST",
+          "Uri": {
+            "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AccessFunction.Arn}/invocations"
+          }
+        }
+      }
+    },
+    "ResponseDEFAULT4XX": {
+      "Type": "AWS::ApiGateway::GatewayResponse",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "ResponseType": "DEFAULT_4XX",
+        "ResponseParameters": {
+          "gatewayresponse.header.Access-Control-Allow-Origin": "'*'",
+          "gatewayresponse.header.Access-Control-Allow-Headers": "'Authorization,Content-Type'",
+          "gatewayresponse.header.Access-Control-Allow-Methods": "'GET,OPTIONS'"
+        }
+      }
+    },
+    "ResponseDEFAULT5XX": {
+      "Type": "AWS::ApiGateway::GatewayResponse",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "ResponseType": "DEFAULT_5XX",
+        "ResponseParameters": {
+          "gatewayresponse.header.Access-Control-Allow-Origin": "'*'",
+          "gatewayresponse.header.Access-Control-Allow-Headers": "'Authorization,Content-Type'",
+          "gatewayresponse.header.Access-Control-Allow-Methods": "'GET,OPTIONS'"
+        }
+      }
+    },
+    "ResponseUNAUTHORIZED": {
+      "Type": "AWS::ApiGateway::GatewayResponse",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "ResponseType": "UNAUTHORIZED",
+        "ResponseParameters": {
+          "gatewayresponse.header.Access-Control-Allow-Origin": "'*'",
+          "gatewayresponse.header.Access-Control-Allow-Headers": "'Authorization,Content-Type'",
+          "gatewayresponse.header.Access-Control-Allow-Methods": "'GET,OPTIONS'"
+        }
+      }
+    },
+    "ResponseACCESSDENIED": {
+      "Type": "AWS::ApiGateway::GatewayResponse",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "ResponseType": "ACCESS_DENIED",
+        "ResponseParameters": {
+          "gatewayresponse.header.Access-Control-Allow-Origin": "'*'",
+          "gatewayresponse.header.Access-Control-Allow-Headers": "'Authorization,Content-Type'",
+          "gatewayresponse.header.Access-Control-Allow-Methods": "'GET,OPTIONS'"
+        }
+      }
+    },
+    "InvokePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "AccessFunction"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/*/me"
+        }
+      }
+    },
+    "Deployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "Api"
+        }
+      },
+      "DependsOn": [
+        "MeGET",
+        "MeOPTIONS"
+      ]
+    },
+    "Stage": {
+      "Type": "AWS::ApiGateway::Stage",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "Api"
+        },
+        "DeploymentId": {
+          "Ref": "Deployment"
+        },
+        "StageName": "prod",
+        "MethodSettings": [
+          {
+            "ResourcePath": "/*",
+            "HttpMethod": "*",
+            "ThrottlingRateLimit": 30,
+            "ThrottlingBurstLimit": 60
+          }
+        ]
+      }
+    },
+    "GithubDeployRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Federated": {
+                  "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+                }
+              },
+              "Action": "sts:AssumeRoleWithWebIdentity",
+              "Condition": {
+                "StringEquals": {
+                  "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+                },
+                "StringLike": {
+                  "token.actions.githubusercontent.com:sub": [
+                    "repo:Kiyoshi-Takahashi611/pipe-support-studio:ref:refs/heads/main",
+                    "repo:Kiyoshi-Takahashi611@*/pipe-support-studio@*:ref:refs/heads/main"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "DeployFrontend",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:PutObject",
+                    "s3:GetObject",
+                    "s3:ListBucket"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": [
+                        "WebBucket",
+                        "Arn"
+                      ]
+                    },
+                    {
+                      "Fn::Sub": "${WebBucket.Arn}/*"
+                    }
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cloudfront:CreateInvalidation",
+                    "cloudfront:GetInvalidation"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "cloudformation:DescribeStacks",
+                  "Resource": {
+                    "Ref": "AWS::StackId"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "UserPoolId": {
+      "Value": {
+        "Ref": "AppUserPool"
+      }
+    },
+    "UserPoolClientId": {
+      "Value": {
+        "Ref": "AppUserPoolClient"
+      }
+    },
+    "ApiUrl": {
+      "Value": {
+        "Fn::Sub": "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/prod"
+      }
+    },
+    "WebBucketName": {
+      "Value": {
+        "Ref": "WebBucket"
+      }
+    },
+    "CloudFrontDomain": {
+      "Value": {
+        "Fn::GetAtt": [
+          "Distribution",
+          "DomainName"
+        ]
+      }
+    },
+    "CloudFrontDistributionId": {
+      "Value": {
+        "Ref": "Distribution"
+      }
+    },
+    "AccessFunctionName": {
+      "Value": {
+        "Ref": "AccessFunction"
+      }
+    },
+    "GithubDeployRoleArn": {
+      "Value": {
+        "Fn::GetAtt": [
+          "GithubDeployRole",
+          "Arn"
+        ]
+      }
+    }
+  }
+}
