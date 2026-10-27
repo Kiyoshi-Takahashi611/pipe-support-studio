@@ -1,0 +1,15 @@
+{
+  "id": "/",
+  "name": "SUPPORT STUDIO | 配管サポート構造計算",
+  "short_name": "配管サポート",
+  "lang": "ja",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#153b3b",
+  "background_color": "#f3f5f2",
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"}
+  ]
+}

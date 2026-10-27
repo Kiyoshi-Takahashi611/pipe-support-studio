@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 256 256">
+  <title>SUPPORT STUDIO — 配管サポート</title>
+  <rect width="256" height="256" rx="56" fill="#153b3b"/>
+  <path d="M68 202 205 120" fill="none" stroke="#da7853" stroke-width="14" stroke-linecap="round"/>
+  <path d="M64 62v146M64 122h143" fill="none" stroke="#edf4e9" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M46 210h36" fill="none" stroke="#a6c5b5" stroke-width="10" stroke-linecap="round"/>
+  <g fill="#153b3b" stroke="#edf4e9" stroke-width="10">
+    <circle cx="112" cy="87" r="24"/>
+    <circle cx="180" cy="87" r="24"/>
+  </g>
+  <circle cx="64" cy="122" r="5" fill="#153b3b"/>
+</svg>
